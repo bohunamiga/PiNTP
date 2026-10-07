@@ -2,7 +2,7 @@
  * PiNTP - Lightweight SNTP time synchronization client for AROS (aarch64)
  * Designed specifically for Raspberry Pi 3B+ (which lacks a hardware RTC).
  *
- * Compile: aarch64-aros-gcc -o PiNTP pintp.c
+ * Compile: aarch64-aros-gcc -o PiNTP pintp.c -lnet
  */
 
 #include <stdio.h>
