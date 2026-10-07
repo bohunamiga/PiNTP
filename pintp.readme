@@ -1,0 +1,78 @@
+Short:        SNTP time client for Raspberry Pi
+Uploader:     tomek@amiga.icu (Tomasz Paul)
+Author:       tomek@amiga.icu (Tomasz Paul)
+Type:         comm/tcp
+Version:      1.0
+Architecture: AROS aarch64
+
+ A lightweight SNTP time synchronization client for Raspberry Pi
+ computers (ideal for the Pi 3B+, which has no hardware RTC).
+ Synchronizes or displays the current time over UDP port 123.
+
+ REQUIREMENTS:
+
+ - AROS aarch64 with a running TCP/IP stack (AROSTCP) providing
+   bsdsocket.library
+ - A configured network interface with a default route (e.g.
+   Devs:Networks/bcmgenet.device on the Pi 3B+)
+ - A working DNS configuration ONLY if you use hostnames (see
+   TROUBLESHOOTING); server IPs can be used directly, sidestepping
+   DNS entirely
+
+ FEATURES:
+
+ - SNTP protocol (RFC 4330, UDP port 123), client mode, NTPv4 (VN=4)
+ - Query any NTP server, by hostname or IP
+ - Set the AROS software clock from the response (-s); works through
+   the CLI 'Date' command (timer.device), since AROS settimeofday()
+   is not implemented
+ - Timezone support with -z (seconds or +/-HH[:MM] forms)
+ - Auto-detects timezone from ENV:TZ or AROS locale (loc_GMTOffset)
+ - Validates replies: packet length, server mode, synchronization
+   status, Kiss-of-Death (stratum 0) and zero timestamps
+ - Verbose mode shows the resolved server IP, NTP stratum and timestamps
+
+
+ USAGE:
+
+ From CLI:
+
+   PiNTP                              ; query pool.ntp.org, show time
+   PiNTP -s                           ; query and set system clock
+   PiNTP -s 162.159.200.123           ; query a server by IP (no DNS)
+   PiNTP -s -z 3600                   ; set clock for UTC+1 (CET)
+   PiNTP -v pool.ntp.org              ; verbose, show resolved IP
+
+
+ OPTIONS:
+
+   -s            Set system clock from NTP response
+   -z <offset>   Timezone offset from UTC in SECONDS (e.g. 3600,
+                 -18000, 19800) or as +/-HH[:MM] (e.g. +1, -5, +5:30)
+                 Overrides ENV:TZ / locale auto-detection
+   -v            Verbose output (resolved IP, NTP details)
+   -h            Show help
+   [server]      NTP server: hostname or dotted-quad IP address.
+                 Default: pool.ntp.org
+
+ NOTE on timezones: AROS locale provides a fixed offset and no DST
+ rules. If you need daylight saving, use '-z' or set ENV:TZ.
+
+
+ TROUBLESHOOTING:
+
+ - "Failed to send data: Permission denied" (EACCES): the AROSTCP
+   resolver marks unresolvable hostnames with the broadcast address
+   255.255.255.255 (or 0.0.0.0), and AROSTCP refuses to send to a
+   broadcast address. Fix the DNS configuration in
+   System:Network/AROSTCP/db/netdb-myhost (NAMESERVER <router/gateway
+   IP>) and restart the stack, or simply pass a server IP address:
+   'PiNTP -s 162.159.200.123'
+ - Timeout waiting for NTP response: the NTP server or port 123 is
+   unreachable from your network. Check the route with 'netstat -r'
+   and try a different server.
+
+
+ LICENSE:
+
+ Freeware. Use at your own risk.
