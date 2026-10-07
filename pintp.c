@@ -19,6 +19,7 @@
 #include <sys/select.h>
 
 #include <exec/types.h>
+#include <devices/timer.h>
 #include <libraries/locale.h>
 #include <proto/exec.h>
 #include <proto/locale.h>
@@ -28,7 +29,7 @@
 #define NTP_EPOCH_DELTA 2208988800ULL   /* Seconds from 1900 to 1970 */
 #define AMIGA_EPOCH_DELTA 2461449600ULL /* Seconds from 1900 to 1978 (Amiga/AROS Epoch) */
 #define RECV_TIMEOUT_S 5
-#define MIN_NTP_REPLY 4                  /* LI+Version+Mode, Stratum, Poll, Precision */
+#define MIN_NTP_REPLY NTP_PACKET_SIZE
 
 static void print_usage(void) {
     printf("PiNTP - SNTP Time Client for AROS aarch64 (Raspberry Pi 3B+)\n");
@@ -70,6 +71,72 @@ static int parse_tz(const char *tz_str) {
 
     long total = (long)hours * 60L + (long)mins; /* minutes */
     return (int)(total * 60L);
+}
+
+static int64_t calendar_to_unix_seconds(const struct tm *calendar) {
+    int64_t year = (int64_t)calendar->tm_year + 1900;
+    int64_t month = (int64_t)calendar->tm_mon + 1;
+    year -= month <= 2;
+
+    int64_t era = (year >= 0 ? year : year - 399) / 400;
+    int64_t year_of_era = year - era * 400;
+    int64_t day_of_year =
+        (153 * (month + (month > 2 ? -3 : 9)) + 2) / 5 +
+        calendar->tm_mday - 1;
+    int64_t day_of_era = year_of_era * 365 + year_of_era / 4 -
+                         year_of_era / 100 + day_of_year;
+    int64_t days = era * 146097 + day_of_era - 719468;
+
+    return days * 86400 + calendar->tm_hour * 3600 +
+           calendar->tm_min * 60 + calendar->tm_sec;
+}
+
+static int set_aros_clock(const struct tm *calendar) {
+    int64_t amiga_seconds = calendar_to_unix_seconds(calendar) -
+                            ((int64_t)AMIGA_EPOCH_DELTA -
+                             (int64_t)NTP_EPOCH_DELTA);
+    if (amiga_seconds < 0 || amiga_seconds > UINT32_MAX) {
+        printf("Time is outside the range supported by the AROS clock.\n");
+        return 1;
+    }
+
+    struct MsgPort *timer_port = CreateMsgPort();
+    if (!timer_port) {
+        printf("Failed to create timer.device message port.\n");
+        return 1;
+    }
+
+    struct timerequest *timer_req =
+        (struct timerequest *)CreateIORequest(timer_port, sizeof(*timer_req));
+    if (!timer_req) {
+        DeleteMsgPort(timer_port);
+        printf("Failed to create timer.device request.\n");
+        return 1;
+    }
+
+    BYTE open_error = OpenDevice(TIMERNAME, UNIT_VBLANK,
+                                 (struct IORequest *)timer_req, 0);
+    if (open_error != 0) {
+        DeleteIORequest((struct IORequest *)timer_req);
+        DeleteMsgPort(timer_port);
+        printf("Failed to open timer.device (error %ld).\n", (LONG)open_error);
+        return 1;
+    }
+
+    timer_req->tr_node.io_Command = TR_SETSYSTIME;
+    timer_req->tr_time.tv_secs = (ULONG)amiga_seconds;
+    timer_req->tr_time.tv_micro = 0;
+    LONG io_error = DoIO((struct IORequest *)timer_req);
+
+    CloseDevice((struct IORequest *)timer_req);
+    DeleteIORequest((struct IORequest *)timer_req);
+    DeleteMsgPort(timer_port);
+
+    if (io_error != 0) {
+        printf("Failed to set system clock (timer.device error %ld).\n", io_error);
+        return 1;
+    }
+    return 0;
 }
 
 int main(int argc, char **argv) {
@@ -313,22 +380,12 @@ int main(int argc, char **argv) {
 
     printf("Time from %s: %s %s\n", server, date_str, time_str);
 
-    /* Update the AROS software clock. AROS's settimeofday() is not implemented,
-       so we go through the CLI 'Date' command, which sets both date and time
-       via timer.device (TR_SETSYSTIME). Lowercased months are conventional. */
+    /* Update the AROS software clock directly through timer.device. */
     if (set_clock) {
-        for (char *p = date_str + 3; *p; p++)
-            if (*p >= 'A' && *p <= 'Z') *p = *p - 'A' + 'a';
-
-        char cmd[128];
-        snprintf(cmd, sizeof(cmd), "Date %s %s", date_str, time_str);
-        if (verbose) printf("[INFO] Executing: %s\n", cmd);
-
-        int res = system(cmd);
-        if (res == 0) {
+        if (verbose)
+            printf("[INFO] Setting the AROS software clock via timer.device...\n");
+        if (set_aros_clock(tm_info) == 0) {
             printf("AROS software clock successfully updated.\n");
-        } else {
-            printf("Failed to set system clock.\n");
         }
     }
 

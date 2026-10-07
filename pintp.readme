@@ -23,9 +23,8 @@ Architecture: AROS aarch64
 
  - SNTP protocol (RFC 4330, UDP port 123), client mode, NTPv4 (VN=4)
  - Query any NTP server, by hostname or IP
- - Set the AROS software clock from the response (-s); works through
-   the CLI 'Date' command (timer.device), since AROS settimeofday()
-   is not implemented
+ - Set the AROS software clock from the response (-s) via timer.device,
+   without launching the CLI 'Date' command
  - Timezone support with -z (seconds or +/-HH[:MM] forms)
  - Auto-detects timezone from ENV:TZ or AROS locale (loc_GMTOffset)
  - Validates replies: packet length, server mode, synchronization
