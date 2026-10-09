@@ -465,7 +465,7 @@ static void DoNTP(void)
         set(monthobj, MUIA_Cycle_Active, clockdata.month - 1);
         set(yearobj, MUIA_String_Integer, clockdata.year);
         set(clockobj, MUIA_Clock_Frozen, FALSE);
-        CallHook(&clockhook, clockobj, (APTR)&zero);
+        CallHook(&clockhook, clockobj, zero);
         
         set(statusobj, MUIA_Text_Contents, (IPTR)MSG(MSG_INFO_NTP_OK));
     }

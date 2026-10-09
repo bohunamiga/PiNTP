@@ -122,6 +122,7 @@ BOOL NTPGetTime(CONST_STRPTR server, LONG tz_offset_secs,
     struct hostent host_storage;
     struct hostent *host = NULL;
     unsigned long h_addr_4;
+    char *h_addr_list_4[2];
     struct sockaddr_in serv_addr;
     struct timeval timeout;
     fd_set readfds;
@@ -147,7 +148,10 @@ BOOL NTPGetTime(CONST_STRPTR server, LONG tz_offset_secs,
     if ((long)resolved_ip != -1)
     {
         h_addr_4 = resolved_ip;
-        host_storage.h_addr = (char *)&h_addr_4;
+        memset(&host_storage, 0, sizeof(host_storage));
+        h_addr_list_4[0] = (char *)&h_addr_4;
+        h_addr_list_4[1] = NULL;
+        host_storage.h_addr_list = h_addr_list_4;
         host_storage.h_length = 4;
         host_storage.h_addrtype = AF_INET;
         host = &host_storage;
