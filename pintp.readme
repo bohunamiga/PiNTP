@@ -2,7 +2,7 @@ Short:        SNTP time client for Raspberry Pi
 Uploader:     tomek@amiga.icu (Tomasz Paul)
 Author:       tomek@amiga.icu (Tomasz Paul)
 Type:         comm/tcp
-Version:      1.0
+Version:      1.1
 Architecture: AROS aarch64
 
  A lightweight SNTP time synchronization client for Raspberry Pi
@@ -36,7 +36,7 @@ Architecture: AROS aarch64
 
  From CLI:
 
-   PiNTP                              ; query pool.ntp.org, show time
+   PiNTP                              ; query 162.159.200.123, show time
    PiNTP -s                           ; query and set system clock
    PiNTP -s 162.159.200.123           ; query a server by IP (no DNS)
    PiNTP -s -z 3600                   ; set clock for UTC+1 (CET)
@@ -52,7 +52,7 @@ Architecture: AROS aarch64
    -v            Verbose output (resolved IP, NTP details)
    -h            Show help
    [server]      NTP server: hostname or dotted-quad IP address.
-                 Default: pool.ntp.org
+                 Default: 162.159.200.123
 
  NOTE on timezones: AROS locale provides a fixed offset and no DST
  rules. If you need daylight saving, use '-z' or set ENV:TZ.

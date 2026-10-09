@@ -38,10 +38,10 @@ static void print_usage(void) {
     printf("  PiNTP [options] [server]\n\n");
     printf("OPTIONS:\n");
     printf("  -s            Set system clock from NTP response\n");
-    printf("  -z <offset>   Timezone offset from UTC (seconds, e.g. 3600, -18000, 19800)\n");
+    printf("  -z <offset>   Timezone offset from UTC (e.g. +1, -5, +5:30, or seconds like 3600)\n");
     printf("  -v            Verbose output\n");
     printf("  -h            Show this help\n\n");
-    printf("Default server: pool.ntp.org\n");
+    printf("Default server: 162.159.200.123\n");
 }
 
 /*
@@ -52,25 +52,44 @@ static void print_usage(void) {
  * Returns offset in SECONDS, or INT_MIN on error.
  */
 static int parse_tz(const char *tz_str) {
+    const char *p;
     long secs = 0;
     char *end = NULL;
+    int sign = 1, hours = 0, mins = 0, n;
 
     if (!tz_str || tz_str[0] == '\0')
         return INT_MIN;
 
-    /* Pure integer -> interpret as seconds (most explicit form) */
-    secs = strtol(tz_str, &end, 10);
-    if (end && *end == '\0' && end != tz_str)
-        return (int)secs;
+    while (*tz_str == ' ' || *tz_str == '\t')
+        tz_str++;
 
-    /* Otherwise fall back to the +/-HH[:MM] form given in usage text */
-    int hours = 0, mins = 0, consumed = 0;
-    int n = sscanf(tz_str, "%d:%d%n", &hours, &mins, &consumed);
-    if (n < 1)
+    if (tz_str[0] == '\0')
         return INT_MIN;
 
-    long total = (long)hours * 60L + (long)mins; /* minutes */
-    return (int)(total * 60L);
+    /* Separate the sign so that "-5:30" means -5h30m, not -5h+30m */
+    p = tz_str;
+    if (*p == '+') { sign = 1; p++; }
+    else if (*p == '-') { sign = -1; p++; }
+
+    /* HH[:MM] form (with or without sign) is always HOURS */
+    if (strchr(tz_str, ':')) {
+        n = sscanf(p, "%d:%d", &hours, &mins);
+        if (n < 2 || mins < 0 || mins > 59)
+            return INT_MIN;
+
+        return sign * (hours * 60 + mins) * 60;
+    }
+
+    /* Plain number: small values are convenient whole HOURS ("+2", "-5"),
+       large values are SECONDS ("3600", "-18000", "19800") */
+    secs = strtol(tz_str, &end, 10);
+    if (!(end && *end == '\0' && end != tz_str))
+        return INT_MIN;
+
+    if (secs >= -24 && secs <= 24)
+        return (int)(secs * 3600L);
+
+    return (int)secs;
 }
 
 static int64_t calendar_to_unix_seconds(const struct tm *calendar) {
@@ -114,12 +133,12 @@ static int set_aros_clock(const struct tm *calendar) {
         return 1;
     }
 
-    BYTE open_error = OpenDevice(TIMERNAME, UNIT_VBLANK,
+    BYTE open_error = OpenDevice((CONST_STRPTR)TIMERNAME, UNIT_VBLANK,
                                  (struct IORequest *)timer_req, 0);
     if (open_error != 0) {
         DeleteIORequest((struct IORequest *)timer_req);
         DeleteMsgPort(timer_port);
-        printf("Failed to open timer.device (error %ld).\n", (LONG)open_error);
+        printf("Failed to open timer.device (error %d).\n", (int)open_error);
         return 1;
     }
 
@@ -133,14 +152,14 @@ static int set_aros_clock(const struct tm *calendar) {
     DeleteMsgPort(timer_port);
 
     if (io_error != 0) {
-        printf("Failed to set system clock (timer.device error %ld).\n", io_error);
+        printf("Failed to set system clock (timer.device error %d).\n", (int)io_error);
         return 1;
     }
     return 0;
 }
 
 int main(int argc, char **argv) {
-    char *server = "pool.ntp.org";
+    char *server = "162.159.200.123";
     int set_clock = 0;
     int verbose = 0;
     int tz_offset_secs = 0;

@@ -1,0 +1,10 @@
+# Copyright (C) 2003-2019, The AROS Development Team. All rights reserved.
+
+include $(SRCDIR)/config/aros.cfg
+
+CATALOGS:=croatian czech danish finnish french german hungarian italian polish \
+    portuguese russian spanish norwegian turkish basque
+
+%build_catalogs mmake=workbench-prefs-time-catalogs \
+    catalogs=$(CATALOGS) \
+    name=Time subdir=System/Prefs
